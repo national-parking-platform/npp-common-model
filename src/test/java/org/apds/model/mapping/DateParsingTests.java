@@ -2,7 +2,7 @@ package org.apds.model.mapping;
 
 import org.apds.model.common.Mapper;
 import org.apds.model.events.SessionCreated;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.springframework.test.util.AssertionErrors.assertNotNull;
 
