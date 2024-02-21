@@ -1,0 +1,1516 @@
+openapi: 3.0.2
+
+info:
+  title: NPP APDS Specifications
+  version: '1.0'
+  description: |-
+    Allows the standard CRUD operations, as well as listing/search of:
+
+    * `Places` (and their `Occupancy`)
+    * `Rates`
+    * `RightSpecifications`
+    * `AssignedRights`
+    * `Sessions`
+    * `Observations`
+
+  contact: {}
+
+servers:
+  - url: ''
+
+paths:
+
+  /request:
+    parameters: []
+    get:
+      summary: Test the API
+      operationId: basicRequest
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseStatus'
+
+components:
+
+  schemas:
+
+    # ===== API Domain =====
+
+    DeletedReference:
+      title: DeletedReference
+      description: 'A reference to a deleted identifiable managed object where the identifier is unique.
+        It is described by a string identifying the class of the referenced object (key name) with a unique string
+        identifier as its value, and the deletion instant.'
+      type: object
+      x-package: api
+      properties:
+        id:
+          type: string
+        className:
+          type: string
+          pattern: '^([A-Z][a-z0-9]+)+'
+        deleteTimestamp:
+          type: string
+          format: date-time
+          description: 'The instant when the reference was deleted.'
+      required:
+        - deleteTimestamp
+        - id
+        - className
+
+    ResponseStatus:
+      title: ResponseStatus
+      description: 'Codifies responses following some creation, update or delete operation.'
+      type: object
+      x-package: api
+      properties:
+        status:
+          $ref: '#/components/schemas/ResponseStatusEnum'
+        code:
+          type: integer
+          description: 'Same numbering and semantics as HTTP status codes.'
+        message:
+          type: string
+          description: 'Descriptive message for error statuses.'
+      required:
+        - status
+
+    PaginatedListMeta:
+      title: PaginatedListMeta
+      description: 'Metadata for paginated list of results for Listing APIs'
+      type: object
+      x-package: api
+      properties:
+        referenceInstant:
+          type: integer
+          description: 'Allows a consistent view of data across multiple paged requests. Unix epoch time to be used as 
+            reference for offset > 0 (corresponds to query instant, as returned by server on first call) - should be 
+            the same for all pages'
+          minimum: 0
+        offset:
+          type: integer
+          minimum: 0
+          description: 'Index of the first item returned in the page'
+        pageSize:
+          type: integer
+          description: 'Maximum number of items that can be returned per page'
+          minimum: 0
+        total:
+          type: integer
+          description: 'Total number of items contained in all pages'
+          minimum: 0
+      required:
+        - referenceInstant
+        - offset
+        - pageSize
+        - total
+
+    PaginatedList:
+      title: PaginatedList
+      description: 'Paginated list of results for listing APIs'
+      type: object
+      x-package: api
+      properties:
+        meta:
+          $ref: '#/components/schemas/PaginatedListMeta'
+        deletedReferences:
+          type: array
+          description: 'This attribute will returned when the `modified_since` query parameter is used. 
+            It will contain references to deleted resources since the provided instant, that would have otherwise 
+            been included in the dataset (either at the top-level or as associated objects)'
+          items:
+            $ref: '#/components/schemas/DeletedReference'
+      required:
+        - meta
+
+    # ===== Common domain =====
+
+    AmountInCurrency:
+      title: AmountInCurrency
+      description: 'A class supporting the definition of a unit of currency in a defined currency.'
+      type: object
+      x-package: common
+      properties:
+        currencyType:
+          $ref: '#/components/schemas/CurrencyCode'
+        currencyValue:
+          type: number
+          description: The amount of currency specified in the given currency code type.
+          format: float
+      required:
+        - currencyType
+        - currencyValue
+
+    Ampere:
+      title: Ampere
+      description: 'Unit for electric current.'
+      type: number
+
+    AreaDimension:
+      title: AreaDimension
+      type: object
+      description: 'A class defining information concerning an area measurement with unit.'
+      x-package: common
+      properties:
+        measure:
+          type: number
+          format: float
+          description: 'Quantity in the defined unit of measure.'
+        unitOfMeasure:
+          $ref: '#/components/schemas/UnitOfMeasureAreaEnum'
+      required:
+        - measure
+        - unitOfMeasure
+
+    CountryCode:
+      title: CountryCode
+      description: 'EN ISO 3166-1 two-character country code.'
+      type: string
+      x-package: common
+      pattern: '^[a-z]{2}$'
+      example: 'es'
+
+    CurrencyCode:
+      title: CurrencyCode
+      description: 'Code for the specified currency as defined in ISO 4217.'
+      type: string
+      x-package: common
+      pattern: '^[A-Z]{3}$'
+      example: 'EUR'
+
+    Duration:
+      title: Duration
+      description: 'ISO8601 format definition of an interval of time in format [PnnYnnMnnDTnnHnnMnnS].'
+      type: string
+      x-package: common
+      pattern: "^P(?!$)(\\d+Y)?(\\d+M)?(\\d+W)?(\\d+D)?(T(?=\\d)(\\d+H)?(\\d+M)?(\\d+S)?)?$"
+      example: 'P1Y2M3DT4H5M6S'
+
+    LanguageCode:
+      title: LanguageCode
+      description: 'ISO 639-1:2002 language code'
+      type: string
+      x-package: common
+      pattern: '^[a-z]{2}$'
+      example: 'en'
+
+    LinearDimension:
+      title: LinearDimension
+      description: 'A class defining information concerning a linear measure (distance) with unit.'
+      type: object
+      x-package: common
+      properties:
+        measure:
+          type: number
+          format: float
+          description: 'Quantity in the defined unit of measure.'
+        unitOfMeasure:
+          $ref: '#/components/schemas/UnitOfMeasureDistanceEnum'
+      required:
+        - measure
+        - unitOfMeasure
+
+    MultilingualString:
+      title: MultilingualString
+      description: 'Multilingual string, represented as an array of SpecificLanguageString objects, each containing a language code (using ISO 639-1:2002) and the translated string.'
+      type: object
+      x-package: common
+      properties:
+        language:
+          $ref: '#/components/schemas/LanguageCode'
+        string:
+          type: string
+          description: 'Translated string'
+      required:
+        - language
+        - string
+
+    Reference:
+      title: Reference
+      description: 'A reference to an identifiable managed object where the identifier is unique. It is composed of a string identifying the class of the referenced object and a unique string identifier.'
+      type: object
+      x-package: common
+      additionalProperties: false
+      minProperties: 1
+      maxProperties: 1
+      properties:
+        className:
+          type: string
+          description: 'The class name of the referenced object in PascalCase.'
+          example: 'UKNumberPlate'
+          minLength: 1
+        id:
+          type: string
+          description: 'The unique identifier within the given class.'
+          example: 'LA51ABC'
+      required:
+        - className
+        - id
+
+    ReferenceCodeListEntry:
+      title: ReferencedCodeListEntry
+      description: 'Class providing structure to support reference to an entry in a previously defined user-defined code list.'
+      type: object
+      x-package: common
+      properties:
+        codeListEntryId:
+          $ref: '#/components/schemas/Reference'
+        codeListId:
+          $ref: '#/components/schemas/VersionedReference'
+        entryDefinedValue:
+          type: string
+          description: 'Free-text defined text (name) for the code list entry being referenced.'
+      required:
+        - entryDefinedValue
+
+    UserDefinedCodeList:
+      title: UserDefinedCodeList
+      description: Class providing structure to support a user-defined code list.
+      type: object
+      x-package: common
+      properties:
+        creator:
+          $ref: '#/components/schemas/VersionedReference'
+        includeNilReasonType:
+          type: string
+          description: 'Boolean: [TRUE] indicates the NilReasonType list shall be included in this user defined code list.'
+        locator:
+          $ref: '#/components/schemas/Url'
+        userDefinedCodeListEntries:
+          type: array
+          minItems: 1
+          description: 'User defined code list entries.'
+          items:
+            $ref: '#/components/schemas/UserDefinedCodeListEntry'
+      required:
+        - creator
+        - includeNilReasonType
+        - locator
+        - userDefinedCodeListEntries
+
+    UserDefinedCodeListEntry:
+      title: UserDefinedCodeListEntry
+      description: 'Class providing structure to support a specific entry within a user-defined code list.'
+      type: object
+      x-package: common
+      properties:
+        definedValue:
+          type: string
+          description: 'Free-text defined text (name) for the code list entry being referenced.'
+        entryDescription:
+          type: string
+          description: 'Free-text description (explanation) for the code list entry being referenced.'
+        entryIndex:
+          type: integer
+          description: 'Index number (integer) for the code list entry being referenced.'
+      required:
+        - definedValue
+        - entryIndex
+
+    Time:
+      title: Time
+      description: 'ISO8601 format definition of a time - format HH:MM.'
+      type: string
+      x-package: common
+      pattern: "^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$"
+      example: '12:15'
+
+    Units:
+      title: Units
+      description: 'Amount in units,which are specified by unitTypeEnum.'
+      type: number
+      x-package: common
+
+    Url:
+      title: Url
+      description: 'Represents a Url for an internet accessible resource.'
+      type: string
+      x-package: common
+      format: url
+
+    VehicleAncillaryIdentification:
+      title: VehicleAncillaryIdentification
+      description: Information relating to a specific vehicle
+      type: object
+      x-package: common
+      properties:
+        country:
+          $ref: '#/components/schemas/CountryCode'
+        color:
+          type: string
+          description: 'The predominant colour of the vehicle.'
+        description:
+          type: string
+          description: 'Free-text description of other distinguishing features of the vehicle.'
+        make:
+          type: string
+          description: "The branded manufacturer's name for the vehicle (e.g. Ford, Audi, BMW, Mazda)."
+        model:
+          type: string
+          description: 'The model name for the vehicle type (e.g. Ford "Mondeo", Citroen "C-Zero").'
+        stateProvince:
+          type: string
+          description: 'State, province or other administrative subdivision where a nation state permits registration of 
+            vehicles on a lower administrative level basis.'
+      required:
+        - country
+
+    VersionedIdentity:
+      title: VersionedIdentity
+      description: 'Represents an object with an identity and can have versions over time.'
+      type: object
+      x-package: common
+      properties:
+        id:
+          type: string
+          description: 'Unique identifier for object.'
+          minLength: 1
+        version:
+          type: integer
+          minimum: 1
+          description: 'Positive integer representing the object version.'
+      required:
+        - id
+        - version
+
+    VersionedReference:
+      title: VersionedReference
+      description: 'A reference to an identifiable version managed object where the combination of the identifier and version is unique. 
+        It comprises an identifier (e.g. GUID), a version (NonNegativeInteger) and a string identifying the class of the referenced object.'
+      type: object
+      x-package: common
+      additionalProperties: false
+      properties:
+        id:
+          type: string
+          minLength: 1
+          description: 'Unique identifier.'
+        version:
+          type: integer
+          minimum: 1
+          description: 'Version number.'
+        className:
+          type: string
+          description: "Class name of the referenced object. It's optional, as it might be implied by the attribute name using this reference"
+          pattern: '^([A-Z][a-z0-9]+)+'
+      required:
+        - id
+        - version
+
+    Volt:
+      title: Volt
+      description: 'Unit of measure of electric potential.'
+      type: number
+      x-package: common
+
+    Watt:
+      title: Watt
+      description: 'Unit of measure of electric power.'
+      type: number
+      x-package: common
+
+    WeightDimension:
+      title: WeightDimension
+      description: 'A class defining information concerning a weight quantity with unit.'
+      type: object
+      x-package: common
+      properties:
+        measure:
+          type: number
+          format: float
+          description: 'Quantity in the defined unit of measure.'
+        unitOfMeasure:
+          $ref: '#/components/schemas/UnitOfMeasureWeightEnum'
+      required:
+        - measure
+        - unitOfMeasure
+
+    # ===== Enums =====
+
+    AreaFacilityPointLocationEnum:
+      title: AreaFacilityPointLocationEnum
+      description: |-
+        * `assistanceLocation`: indicating the nature of the location point where assistance is available
+        * `entranceAndExitLocation`: indicating the nature of the location is both an entrance and an exit from the Facility
+        * `entranceLocation`: indicating the nature of the location is an entrance to the Facility
+        * `exitLocation`: indicating the nature of the location is an exit from the Facility
+        * `sellingPointLocation`: indicating the nature of the location is a position for the access to ticket machines, or similar vending facilities'
+      type: string
+      x-package: enums
+      enum:
+        - assistanceLocation
+        - entranceAndExitLocation
+        - entranceLocation
+        - exitLocation
+        - sellingPointLocation
+
+    HeightGradeEnum:
+      title: HeightGradeEnum
+      description: |-
+        * `aboveGrade`: Above or over the normal road grade elevation.
+        * `atGrade`: At the normal road grade elevation.
+        * `belowGrade`: Below or under the normal road grade elevation.
+      type: string
+      x-package: enums
+      enum:
+        - aboveGrade
+        - atGrade
+        - belowGrade
+
+    LoadTypeEnum:
+      title: LoadTypeEnum
+      description: |-
+        * `abnormalLoad`: A load that exceeds normal vehicle dimensions in terms of height, length, width, gross vehicle weight or axle weight or any combination of these. Generally termed an "abnormal load".
+        * `ammunition`: Ammunition.
+        * `chemicals`: Chemicals of unspecified type.
+        * `combustibleMaterials`: Combustible materials of unspecified type.
+        * `corrosiveMaterials`: Corrosive materials of unspecified type.
+        * `debris`: Debris of unspecified type.
+        * `empty`: No load.
+        * `explosiveMaterials`: Explosive materials of unspecified type.
+        * `extraHighLoad`: A load of exceptional height.
+        * `extraLongLoad`: A load of exceptional length.
+        * `extraWideLoad`: A load of exceptional width.
+        * `fuel`: Fuel of unspecified type.
+        * `glass`: Glass.
+        * `goods`: Any goods of a commercial nature.
+        * `hazardousMaterials`: Materials classed as being of a hazardous nature.
+        * `liquid`: Liquid of an unspecified nature.
+        * `livestock`: Livestock.
+        * `materials`: General materials of unspecified type.
+        * `materialsDangerousForPeople`: Materials classed as being of a danger to people or animals.
+        * `materialsDangerousForTheEnvironment`: Materials classed as being potentially dangerous to the environment.
+        * `materialsDangerousForWater`: Materials classed as being dangerous when exposed to water (e.g. materials which may react exothermically with water).
+        * `oil`: Oil.
+        * `ordinary`: Materials that present limited environmental or health risk. Non-combustible, non-toxic, non-corrosive.
+        * `other`: Other than as defined in this enumeration.
+        * `perishableProducts`: Products or produce that will significantly degrade in quality or freshness over a short period of time.
+        * `petrol`: Petrol or petroleum.
+        * `pharmaceuticalMaterials`: Pharmaceutical materials.
+        * `radioactiveMaterials`: Materials that emit significant quantities of electro-magnetic radiation that may present a risk to people, animals or the environment.
+        * `refrigeratedGoods`: Refrigerated goods.
+        * `refuse`: Refuse.
+        * `toxicMaterials`: Materials of a toxic nature which may damage the environment or endanger public health.
+        * `vehicles`: Vehicles of any type which are being transported.
+      type: string
+      x-package: enums
+      enum:
+        - abnormalLoad
+        - ammunition
+        - chemicals
+        - combustibleMaterials
+        - corrosiveMaterials
+        - debris
+        - empty
+        - explosiveMaterials
+        - extraHighLoad
+        - extraLongLoad
+        - extraWideLoad
+        - fuel
+        - glass
+        - goods
+        - hazardousMaterials
+        - liquid
+        - livestock
+        - materials
+        - materialsDangerousForPeople
+        - materialsDangerousForTheEnvironment
+        - materialsDangerousForWater
+        - oil
+        - ordinary
+        - other
+        - perishableProducts
+        - petrol
+        - pharmaceuticalMaterials
+        - radioactiveMaterials
+        - refrigeratedGoods
+        - refuse
+        - toxicMaterials
+        - vehicles
+
+    NilReasonTypeEnum:
+      title: NilReasonTypeEnum
+      description: |-
+        * `inapplicable`: there is no value
+        * `missing`: the correct value is not readily available to the sender of this data. Furthermore, a correct value may not exist
+        * `template`: the value will be available later
+        * `unknown`: the correct value is not known to, and not computable by, the sender of this data. However, a correct value probably exists
+        * `withheld`: the value is not divulged
+      type: string
+      x-package: enums
+      enum:
+        - inapplicable
+        - missing
+        - template
+        - unknown
+        - withheld
+
+    ParkingSecurityEnum:
+      title: ParkingSecurityEnum
+      description: |-
+        * `areaSeperatedFromSurroundings`: Site is separated from its surroundings. Can also be used to express a space for noise-producing vehicles, e.g. lorries with cooling generators.
+        * `cctv`: CCTV (camera observation).
+        * `dog`: Dog.
+        * `externalSecurity`: External security, e.g. police or staff not directly belonging to the parking.
+        * `fences`: Fences.
+        * `floodLight`: Flood light (stronger than lighting).
+        * `guard24hours`: 24/24 guard.
+        * `lighting`: Site is illuminated in a normal way (but not as strong as 'floodLight').
+        * `none`: There are no security measures.
+        * `other`: None of the values in this enumeration applies. Use 'parkingAdditionalSecurity' instead.
+        * `securityStaff`: Security staff.
+        * `socialControl`: Social control e.g. parking situated in a neighbourhood.
+        * `unknown`: Unknown.
+      type: string
+      x-package: enums
+      enum:
+        - areaSeperatedFromSurroundings
+        - cctv
+        - dog
+        - externalSecurity
+        - fences
+        - floodLight
+        - guard24hours
+        - lighting
+        - none
+        - other
+        - securityStaff
+        - socialControl
+        - unknown
+
+    PaymentBrandsEnum:
+      title: PaymentBrandsEnum
+      description: |-
+        * `americanExpress`: American express
+        * `applePay`: Apple pay
+        * `cirrus`: Cirrus
+        * `dinersClub`: Diners club
+        * `discoverCard`: Discover card
+        * `giroCard`: Giro card
+        * `maestro`: Maestro
+        * `masterCard`: Master card
+        * `other`: Other
+        * `visa`: Visa
+        * `vpay`: Vpay
+      type: string
+      x-package: enums
+      enum:
+        - americanExpress
+        - applePay
+        - cirrus
+        - dinersClub
+        - discoverCard
+        - giroCard
+        - maestro
+        - masterCard
+        - other
+        - visa
+        - vpay
+
+    RefillPointStatusEnum:
+      title: RefillPointStatusEnum
+      description: |-
+        * `available`: The refill point is not occupied, has got enough energy resources and can be used.
+        * `blocked`: The refill point is not accessible because of a physical barrier, e.g. a car.
+        * `charging`: The refill point is currently in use for charging.
+        * `faulted`: The refill point has got a fault.
+        * `inoperative`: The refill point is not yet active or it is no longer available (deleted).
+        * `occupied`: The refill point is in use, this might include vehicle charging activity.
+        * `outOfOrder`: The refill point is currently out of order.
+        * `outOfStock`: The refill point is out of stock, i.e. energy resources are empty.
+        * `planned`: The refill point is planned, will be operating soon.
+        * `removed`: The refill point was discontinued/removed.
+        * `reserved`: The refill point is reserved by a customer, i.e. it is not available for other users right now.
+        * `unavailable`: There is no energy available at this refill point. This could be because of a failure or damage or a longer lasting delivery failure (note that there is a literal 'outOfStock' for a short-term shortage).
+        * `unknown`: The status of the refill point is unknown (can also be offline).
+      type: string
+      x-package: enums
+      enum:
+        - available
+        - blocked
+        - charging
+        - faulted
+        - inoperative
+        - occupied
+        - outOfOrder
+        - outOfStock
+        - planned
+        - removed
+        - reserved
+        - unavailable
+        - unknown
+
+    ResponseStatusEnum:
+      title: ResponseStatusEnum
+      description: 'Type of status.'
+      type: string
+      x-package: enums
+      enum:
+        - ok
+        - error
+
+    TriggerTypeEnum:
+      title: TriggerTypeEnum
+      description: |-
+        * `firstUse`: Trigger is applied on first use of the facility.
+        * `withTransaction`: Trigger condition is met when the transaction is completed.
+      type: string
+      x-package: enums
+      enum:
+        - firstUse
+        - withTransaction
+
+    UserGroupEnum:
+      title: UserGroupEnum
+      description: |-
+        * `disabled`: class of user identified as disabled or handicapped travellers. Local definitions may apply
+        * `employees`: class of user identified as employees associated with the Place. Local definitions may apply
+        * `seniors`: class of user identified as senior citizens. Local definitions may apply
+        * `students`: class of user identified as registered students. Local definitions may apply
+        * `tourists`: class of user identified as tourists (non-local users) associated with the Place. Local definitions may apply
+      type: string
+      x-package: enums
+      enum:
+        - disabled
+        - employees
+        - seniors
+        - students
+        - tourists
+
+    VehicleTypeEnum:
+      title: VehicleTypeEnum
+      description: |-
+        * `agriculturalVehicle`: Vehicle normally used for agricultural purposes (e.g. tractor, combined harvester).
+        * `anyVehicle`: Vehicle of any type.
+        * `articulatedBus`: Articulated bus
+        * `articulatedTrolleyBus`: Articulated trolley bus
+        * `articulatedVehicle`: Articulated vehicle.
+        * `bicycle`: Bicycle.
+        * `bus`: Bus.
+        * `car`: Vehicles designed and constructed for the carriage of passengers and comprising no more than eight seats (in addition to the driver seat), and having a maximum mass (technically permissible maximum laden mass) not exceeding 3.5 tons (M1).
+        * `caravan`: Caravan.
+        * `carOrLightVehicle`: Car or light vehicle.
+        * `carWithCaravan`: Car towing a caravan.
+        * `carWithTrailer`: Car towing a trailer.
+        * `constructionOrMaintenanceVehicle`: Vehicle normally used for construction or maintenance purposes (e.g. digger, excavator, bulldozer, lorry mounted crane)
+        * `fourWheelDrive`: Four wheel drive vehicle.
+        * `heavyDutyTransporter`: A transporter for heavy duty (usually with abnormal dimensions).
+        * `heavyGoodsVehicle`: Vehicles with a total weight above 3,500 kg (vehicle and load).
+        * `heavyGoodsVehicleWithTrailer`: Heavy goods vehicle with trailer
+        * `heavyVehicle`: Vehicle whose weight means it should be classed as a heavy vehicle
+        * `highSidedVehicle`: High sided vehicle.
+        * `largeCar`: Large car
+        * `largeGoodsVehicle`: Vehicles for the carriage of goods and having a maximum mass exceeding 3.5 tonnes (belonging to class N2 when not exceeding 12 tonnes, otherwise class N3).
+        * `lightCommercialVehicle`: Vehicles for the carriage of goods and having a maximum mass not exceeding 3.5 tonnes (class N1).
+        * `lightCommercialVehicleWithTrailer`: Light goods vehicle with trailer
+        * `longHeavyLorry`: A heavy lorry that is longer than normal.
+        * `lorry`: Lorry of any type.
+        * `metro`: Metro
+        * `minibus`: Vehicles designed and constructed for the carriage of passengers, comprising more than eight seats (in addition to the driver seat), and having a maximum mass not exceeding 5 tonnes (class M2).
+        * `moped`: Moped (a two wheeled motor vehicle characterized by a small engine typically less than 50cc and by normally having pedals).
+        * `motorcycle`: Motorcycle.
+        * `motorcycleWithSideCar`: Three wheeled vehicle comprising a motorcycle with an attached side car.
+        * `motorhome`: Motorhome
+        * `motorscooter`: Motorscooter (a two wheeled motor vehicle characterized by a step-through frame and small diameter wheels).
+        * `other`: Other than as defined in this enumeration.
+        * `passengerCar`: Passenger car
+        * `smallCar`: Small car
+        * `tanker`: Vehicle with large tank for carrying bulk liquids.
+        * `threeWheeledVehicle`: Three wheeled vehicle of unspecified type.
+        * `trailer`: Trailer.
+        * `tram`: Tram.
+        * `trolleyBus`: Trolley bus
+        * `twoWheeledVehicle`: Two wheeled vehicle of unspecified type.
+        * `unknown`: Unknown.
+        * `van`: Van.
+        * `vehicleWithCaravan`: Vehicle (of unspecified type) towing a caravan.
+        * `vehicleWithCatalyticConverter`: Vehicle with catalytic converter.
+        * `vehicleWithoutCatalyticConverter`: Vehicle without catalytic converter.
+        * `vehicleWithTrailer`: Vehicle (of unspecified type) towing a trailer.
+        * `withEvenNumberedRegistrationPlates`: Vehicle with even numbered registration plate.
+        * `withOddNumberedRegistrationPlates`: Vehicle with odd numbered registration plate.
+      type: string
+      x-package: enums
+      enum:
+        - agriculturalVehicle
+        - anyVehicle
+        - articulatedBus
+        - articulatedTrolleyBus
+        - articulatedVehicle
+        - bicycle
+        - bus
+        - car
+        - caravan
+        - carOrLightVehicle
+        - carWithCaravan
+        - carWithTrailer
+        - constructionOrMaintenanceVehicle
+        - fourWheelDrive
+        - heavyDutyTransporter
+        - heavyGoodsVehicle
+        - heavyGoodsVehicleWithTrailer
+        - heavyVehicle
+        - highSidedVehicle
+        - largeCar
+        - largeGoodsVehicle
+        - lightCommercialVehicle
+        - lightCommercialVehicleWithTrailer
+        - longHeavyLorry
+        - lorry
+        - metro
+        - minibus
+        - moped
+        - motorcycle
+        - motorcycleWithSideCar
+        - motorhome
+        - motorscooter
+        - other
+        - passengerCar
+        - smallCar
+        - tanker
+        - threeWheeledVehicle
+        - trailer
+        - tram
+        - trolleyBus
+        - twoWheeledVehicle
+        - unknown
+        - van
+        - vehicleWithCaravan
+        - vehicleWithCatalyticConverter
+        - vehicleWithoutCatalyticConverter
+        - vehicleWithTrailer
+        - withEvenNumberedRegistrationPlates
+        - withOddNumberedRegistrationPlates
+
+    esporgSecurityStandardsEnum:
+      title: esporgSecurityStandardsEnum
+      description: |-
+        * `bronze`: class of user identified as employees associated with the Place. Local definitions may apply
+        * `gold`: class of user identified as disabled or handicapped travellers. Local definitions may apply
+        * `platinum`: class of user identified as registered students. Local definitions may apply
+        * `silver`: class of user identified as tourists (non-local users) associated with the Place. Local definitions may apply
+      type: string
+      x-package: enums
+      enum:
+        - bronze
+        - gold
+        - platinum
+        - silver
+
+    AccessLaneTypeEnum:
+      title: AccessLaneTypeEnum
+      description: |- 
+        A list of the supported access lane characteristic types :
+        * `entryOnly`: Entry only Lane used for entry to facility only.
+        * `exitOnly`: Exit only Lane used for exit from facility only.
+        * `reversibleLane`: Reversible lane Lane used for both entry and exit to/from facility, depending on operational conditions.
+        * `serviceVehicleLane`: Service vehicle lane Lane used by parking operator service vehicle, not for public use.
+      type: string
+      x-package: enums
+      enum:
+        - entryOnly
+        - exitOnly
+        - reversibleLane
+        - serviceVehicleLane
+
+    AccessTypeEnum:
+      title: AccessTypeEnum
+      description: |-
+        A list of the supported access area types :
+        * `entry`: a zone or area that is a place for access into a facility
+        * `exit`: a zone or area that is a place for access from a facility
+        * `reversible`: a zone or area that is a place for access to or egress from a facility. Conditions may be changed by operation circumstances, such as time of day.
+      type: string
+      x-package: enums
+      enum:
+        - entry
+        - exit
+        - reversible
+
+    AccessibilityEnum:
+      title: AccessibilityEnum
+      description: |-
+        Special forms of accessibility, easements and marking for disabled people.
+        * `barrierFreeAccessible`: Accessible without any steps or other barriers. Does not ensure the same access as `disabledAccessible`.
+        * `disabledAccessible`: Accessible for disabled people. `wheelChairAccessible` is a special form of it.
+        * `disabledEasements`: There are special easements for disabled people, like handrails or disabled-friendly furniture.
+        * `disabledMarkedThere`: is a visible mark to support access by disabled people (e.g. a wheelchair symbol).
+        * `none`: No form of special accessibility, i.e. usually not convenient for disabled people, e.g. because of steps or barriers.
+        * `orientationSystemForBlindPeople`: There is some orientation system, which helps blind or visually impaired people. Examples might be some acoustic system or tactile paving.
+        * `other`: Other.
+        * `unknown`: It is unknown, whether there is a special form of accessibility.
+        * `wheelChairAccessible`: Accessible by people in a wheelchair.
+      type: string
+      x-package: enums
+      enum:
+        - barrierFreeAccessible
+        - disabledAccessible
+        - disabledEasements
+        - disabledMarkedThere
+        - none
+        - orientationSystemForBlindPeople
+        - other
+        - unknown
+        - wheelChairAccessible
+
+    AddressLineTypeEnum:
+      title: AddressLineTypeEnum
+      description: |-
+        A table of types of address lines
+         * `apartment`: Element indicating a discrete element of a building forming the address
+         * `building`: Element identifying the number or name and type of the edifice or construction relevant for the address [derived from ISO19160-4]
+         * `districtTerritory`: Element specifying the geographic or administrative area of the country for the address [Source: 19160-4]
+         * `floor`: Element indicating the floor or level on which a delivery point is located in a multi-storey building [Source:ISO19160-4]
+         * `poBox`: A postal delivery location identifier, not necessarily a physical location.
+         * `region`: Element indicating the name of the area within or adjacent to the town in which delivery address is.
+         * `street`: Element indicating road or street identifier or name 
+         * `town`: Element indicating the name of the populated place in which a delivery point is located, or near to or via which the delivery point is accessed. [Source: ISO19160-4]
+         * `unit`: An element representing a section of a building or organisation.Free-text description of the condition that leads to a surcharge beingapplied
+      type: string
+      x-package: enums
+      enum:
+        - apartment
+        - building
+        - districtTerritory
+        - floor
+        - poBox
+        - region
+        - street
+        - town
+        - unit
+
+    AuthenticationAndIdentificationEnum:
+      title: AuthenticationAndIdentificationEnum
+      description: |-
+        A table of authentication and/or identification methods: 
+        * `activeRFIDChip`: Phone (active RFID chip)
+        * `apps`: Apps
+        * `calypso`: RFID Calypso
+        * `cashPayment`: No specific authentication by using cash
+        * `creditCard`: Credit card
+        * `debitCard`: Debit card
+        * `mifareClassic`: RFID Card / Phone NFC - Mifare Classic
+        * `mifareDesfire`: RFID Card / Phone NFC - Mifare Desfire
+        * `nfc`: Nearfield communication
+        * `noAccess`: No access granted
+        * `overTheAir`: Over the air according to ISO 15118
+        * `phoneDialog`: phone (dialog with platform)
+        * `phoneSMS`: Phone (SMS)
+        * `pinpad`: PINPAD
+        * `plc`: PLC according to ISO 15118
+        * `prepaidCard`: Pre-Paid card
+        * `rfid`: RFID
+        * `unlimitedAccess`: No authentication/identification required.
+        * `website`: Using a website
+      type: string
+      x-package: enums
+      enum:
+        - activeRFIDChip
+        - apps
+        - calypso
+        - cashPayment
+        - creditCard
+        - debitCard
+        - mifareClassic
+        - mifareDesfire
+        - nfc
+        - noAccess
+        - overTheAir
+        - phoneDialog
+        - phoneSMS
+        - pinpad
+        - plc
+        - prepaidCard
+        - rfid
+        - unlimitedAccess
+        - website
+
+    CalculationTypeEnum:
+      title: CalculationTypeEnum
+      description: |-
+        A list of the supported calculation types for demand.
+        * `counted`: Physical determination if a space is occupied
+        * `derived`: Space occupancy is estimated by using related data such as active payments or sold permits.
+        * `expected`: Future prediction of occupancy levels.
+        * `verified`: Defines an occupancy report that is considered a verified report.
+      type: string
+      x-package: enums
+      enum:
+        - counted
+        - derived
+        - expected
+        - verified
+
+    CalendarWeekInMonthEnum:
+      title: CalendarWeekInMonthEnum
+      description: |-
+        Defines permissible enumerations of identification of calendar weeks within a month
+        * `firstWeek`: First week First calendar week of the month - in accordance with ISO8601. This is the first week, that starts on Monday, and contains the first day of the month.
+        * `secondWeek`: Second week Second calendar week of the month. Calendars weeks commence on a Monday. The second week immediately follows the first week of the month.
+        * `thirdWeek`: Third week Third calendar week of the month. Calendars weeks commence on a Monday. The third week immediately follows the second week of the month.
+        * `fourthWeek`: Fourth week Fourth calendar week of the month. Calendars weeks commence on a Monday. The fourth week immediately follows the third week of the month.
+        * `fifthWeek`: Fifth week Fifth calendar week of the month. Calendars weeks commence on a Monday. The fifth week immediately follows the fourth week of the month.
+        * `sixthWeek`: Sixth week Sixth calendar week of the month. Calendars weeks commence on a Monday. The sixth week immediately follows the fifth week of the month. **NOTE**: this may be the same week as the first calendar week of the following month.
+      type: string
+      x-package: enums
+      enum:
+        - firstWeek
+        - secondWeek
+        - thirdWeek
+        - fourthWeek
+        - fifthWeek
+        - sixthWeek
+
+    ChargingModeEnum:
+      title: ChargingModeEnum
+      description: |-
+        Charging mode according to IEC-61851 terminology
+        * `ccs`: Charging with a combined charging solution (CCS). AC and DC are used simultaneously.
+        * `legacyInductive`: Legacy-Inductive
+        * `mode1AC1p`: Mode 1, AC 1 phase
+        * `mode1AC3p`: Mode 1, AC 3 phases
+        * `mode2AC1p`: Mode 2, AC 1 phase
+        * `mode2AC3p`: Mode 2, AC 3 phases
+        * `mode3AC3p`: Mode 3, AC 3 phases
+        * `mode4DC`: Mode 4, DC
+        * `other`: Some other charging mode
+        * `unknown`: The type of the charging mode is unknown
+      type: string
+      x-package: enums
+      enum:
+        - ccs
+        - legacyInductive
+        - mode1AC1p
+        - mode1AC3p
+        - mode2AC1p
+        - mode2AC3p
+        - mode3AC3p
+        - mode4DC
+        - other
+        - unknown
+
+    ChargingPointUsageTypeEnum:
+      title: ChargingPointUsageTypeEnum
+      description: |-
+        Type of usage for an electric charging point
+        * `electricalDevices`: Provides a plug for electrical devices (e.g. shaver, mobile phones, hair dryer, ...)
+        * `electricBike`: Charging of E-Bikes
+        * `electricBoat`: Charging of electric boats
+        * `electricMotorcycle`: Charging of E-Motorcycles
+        * `electricVehicle`: Charging of electric vehicles
+        * `lorryPowerCosumption`: Supply for lorries with power consumption, e.g. for refrigerated goods transports.
+        * `motorhomeOrCaravanSupply`: Supply for motorhomes or caravans
+        * `other`: Other usage for the electric charging stations.
+        * `overheadLineDrivenVehicles`: The charging point supplies a overhead line, usually connected via pantographs
+      type: string
+      x-package: enums
+      enum:
+        - electricalDevices
+        - electricBike
+        - electricBoat
+        - electricMotorcycle
+        - electricVehicle
+        - lorryPowerConsumption
+        - motorhomeOrCaravanSupply
+        - other
+        - overheadLineDrivenVehicles
+
+    ComparisonOperatorEnum:
+      title: ComparisonOperatorEnum
+      description: |-
+        Logical comparison operations
+        * `equalTo`: Logical comparison operator of "equal to".
+        * `greaterThan`: Logical comparison operator of "greater than".
+        * `greaterThanOrEqualTo`: Logical comparison operator of "greater than or equal to".
+        * `lessThan`: Logical comparison operator of "less than".
+        * `lessThanOrEqualTo`: Logical comparison operator of "less than or equal to".
+      type: string
+      x-package: enums
+      enum:
+        - equalTo
+        - greaterThan
+        - greaterThanOrEqualTo
+        - lessThan
+        - lessThanOrEqualTo
+
+    ConnectorFormatTypeEnum:
+      title: ConnectorFormatTypeEnum
+      description: |
+        A list of cable types used during the charging process.
+        * `cableMode2`: The connector is an attached cable; the EV users car needs to have a fitting inlet for a mode 2 cable, common for most domestic sockets
+        * `cableMode3`: The connector is an attached cable; the EV users car needs to have a fitting inlet for a mode 3 cable, can be used for Type 1 and Type 2 sockets.
+        * `otherCable`: The connector is an attached cable; the EV users car needs to have a fitting inlet.
+        * `socket`: The connector is a socket; the EV user needs to bring a fitting plug
+      type: string
+      x-package: enums
+      enum:
+        - cableMode2
+        - cableMode3
+        - otherCable
+        - socket
+
+    ConnectorTypeEnum:
+      title: ConnectorTypeEnum
+      description: |-
+        A table of commonly used connectors / charging interfaces
+        * `cee3`: CEE3, 230 V, 16 A
+        * `cee5`: CEE5, 400 V, 16-63 A
+        * `chademo`: CHAdeMO, 600 V DC. Used mostly in Japan.
+        * `domestic`: A domestic socket of unspecified type. Applicable countries should be specified in seperate attribute.
+        * `domesticA`: Domestic socket type A (mainly used in the USA, Canada, Mexico & Japan)
+        * `domesticB`: Domestic socket type B (mainly used in the USA, Canada & Mexico)
+        * `domesticC`: Domestic socket type C (commonly used in Europe, South America & Asia)
+        * `domesticD`: Domestic socket type D (mainly used in India)
+        * `domesticE`: Domestic socket type E (primarily used in France, Belgium, Poland, Slovakia & Czechia)
+        * `domesticF`: Domestic socket type F (used almost everywhere in Europe & Russia, except for the UK & Ireland)
+        * `domesticG`: Domestic socket type G (mainly used in the United Kingdom, Ireland, Malta, Malaysia, Singapore & the Arabian Peninsula)
+        * `domesticH`: Domestic socket type H (used exclusively in Israel, the West Bank & the Gaza Strip)
+        * `domesticI`: Domestic socket type I (mainly used in Australia, New Zealand, China & Argentina)
+        * `domesticJ`: Domestic socket type J (used almost exclusively in Switzerland & Liechtenstein)
+        * `domesticK`: Domestic socket type K (used almost exclusively in Denmark & Greenland)
+        * `domesticL`: Domestic socket type L (used almost exclusively in Italy & Chile)
+        * `domesticM`: Domestic socket type M (mainly used in South Africa)
+        * `domesticN`: Domestic socket type N (used in Brazil and South Africa)
+        * `domesticO`: Domestic socket type O (used exclusively in Thailand)
+        * `iec60309x2single16`:  IEC 60309-2 Industrial Connector single phase 16 amperes (usually blue)
+        * `iec60309x2three16`: IEC 60309-2 Industrial Connector three phase 16 amperes (usually red)
+        * `iec60309x2three32`: IEC 60309-2 Industrial Connector three phase 32 amperes (usually red)
+        * `iec60309x2three64`: IEC 60309-2 Industrial Connector three phase 64 amperes (usually red)
+        * `iec62196T1`: IEC 62196 Type 1 "SAE J1772".  Mostly used in USA and Asia.
+        * `iec62196T1COMBO`: Combo Type 1 based, DC
+        * `iec62196T2`: IEC 62196 Type 2 "Mennekes" - 400 V, 16-63 A. Mandatory in Europe
+        * `iec62196T2COMBO`: Combo Type 2 based, DC, Type 2 connector with extension for simultaneous DC-charging
+        * `iec62196T3A`: IEC 62196 Type 3A
+        * `iec62196T3C`: " IEC 62196 Type 3C ""Scame""  "
+        * `other`: Other charging interface.
+        * `pantographBottomUp`: On-board Bottom-up-Pantograph typically for bus charging
+        * `pantographTopDown`: Off-board Top-down-Pantograph typically for bus charging
+        * `teslaConnectorAmerica`: Tesla connector used in America (Tesla specific)
+        * `teslaConnectorEurope`: Tesla Connector EU (modification of the Type 2 connector)
+        * `teslaR`: Tesla Connector "Roadster"-type (round, 4 pin)
+        * `teslaS`: Tesla Connector "Model-S"-type (oval, 5 pin)
+        * `yazaki`: Yazaki, 400 VDC, 125 A, Asian standard.
+      type: string
+      x-package: enums
+      enum:
+        - cee3
+        - cee5
+        - chademo
+        - domestic
+        - domesticA
+        - domesticB
+        - domesticC
+        - domesticD
+        - domesticE
+        - domesticF
+        - domesticG
+        - domesticH
+        - domesticI
+        - domesticJ
+        - domesticK
+        - domesticL
+        - domesticM
+        - domesticN
+        - domesticO
+        - iec60309x2single16
+        - iec60309x2three16
+        - iec60309x2three32
+        - iec60309x2three64
+        - iec62196T1
+        - iec62196T1COMBO
+        - iec62196T2
+        - iec62196T2COMBO
+        - iec62196T3A
+        - iec62196T3C
+        - other
+        - pantographBottomUp
+        - pantographTopDown
+        - teslaConnectorAmerica
+        - teslaConnectorEurope
+        - teslaR
+        - teslaS
+        - yazaki
+
+    ContactTypeEnum:
+      title: ContactTypeEnum
+      description: |-
+        Defines the supported lists of types of contact.
+        * `customerService`: Contact details for parking customer support for a facility or specific entity
+        * `emergencyContact`: Contact details for emergency assistance or support for a facility or specific entity specifically related to parking operations
+        * `operator`: Contact details for the parking operator for a facility or specific entity
+        * `owner`: Contact details for the owner of a facility or specific entity.
+        * `propertyManager`: Contact details for the property manager of a facility or related facility.
+        * `securityService`: Contact details for security services for a facility or specific entity
+      type: string
+      x-package: enums
+      enum:
+        - customerService
+        - emergencyContact
+        - operator
+        - owner
+        - propertyManager
+        - securityService
+
+    CoveredEnum:
+      title: CoveredEnum
+      description: |-
+        Defines the supported lists of different types describing roof coverage of the facility or entity
+        * `covered`: Indicates that the facility or specific entity has a roof to provide protection from direct overhead sun or adverse weather
+        * `notCovered`: Indicates that the facility or specific entity has no roof to provide protection from direct overhead sun or adverse weather
+        * `partiallyCovered`: Indicates that the facility or specific entity has a roof offering partial coverage to provide protection from direct overhead sun or adverse weather
+        * `topLevelNotCovered`: Indicates that in a multi-level facility or specific entity the top level(s) have no roof to provide protection from direct overhead sun or adverse weather
+      type: string
+      x-package: enums
+      enum:
+        - covered
+        - notCovered
+        - partiallyCovered
+        - topLevelNotCovered
+
+    CredentialTypeEnum:
+      title: CredentialTypeEnum
+      description: |-
+        * `barcode`: Barcode or QR digital print pattern, held on any physical media.
+        * `bluetooth`: Specific bluetooth or BLE identification chip used to associate a BLE receiver to a specific user.  Used for both one time and permit uses.
+        * `eticket`: Digital equivalent of a paper ticket, often presentable via smartphone or similar device for control.
+        * `hangtag`: Visible, often removable, credential indicator, with visible markings
+        * `licensePlate`: Fixed plate, in a defined format, used to identify a specific vehicle- Normally a permanent fixture.
+        * `permit`: Issued credential, often in the form of an adhesive label, often placed on the windscreen, credential indicator, with visible markings
+        * `qrCode`: Quick Reference (QR) code
+        * `rfid`: Specific RF identification associated to an RFID-related account.  Used for permit uses.
+        * `ticket`: Typically issued paper with printed details, often with magnetic strips; typically single use disposable.
+        * `electronicID`: An identifier transmitted by electronic means
+        * `permit`: an official document or marker giving someone authorization to do something.
+        * `ticketcoupon`: A visible printed or written paper-based ticket or coupon carrying an identifiable credential.
+        * `vehicleplate`: A fixed identifier (registration plate) visible and fixed to a vehicle.
+      type: string
+      x-package: enums
+      enum:
+        - barcode
+        - bluetooth
+        - eticket
+        - hangtag
+        - licensePlate
+        - permit
+        - qrCode
+        - rfid
+        - ticket
+        - electronicID
+        - permit
+        - ticketcoupon
+        - vehicleplate
+
+    DayEnum:
+      title: DayEnum
+      description: |-
+        Defines permissible enumerations of identification of days within a week
+        * `friday`: Friday
+        * `monday`: Monday
+        * `saturday`: Saturday
+        * `sunday`: Sunday
+        * `thursday`: Thursday
+        * `tuesday`: Tuesday
+        * `wednesday`: Wednesday
+      type: string
+      x-package: enums
+      enum:
+        - friday
+        - monday
+        - saturday
+        - sunday
+        - thursday
+        - tuesday
+        - wednesday
+
+    DeliveryUnitEnum:
+      title: DeliveryUnitEnum
+      description: |-
+        Table with different units in which the delivery is measured.
+        * `gasGallonEquivalent`: The amount of alternative fuel it takes to equal the energy content of one liquid gallon of gasoline. Used mostly in the US.
+        * `imperialGallon`: Imperial Gallon (4.54609 litres)
+        * `kg`: kilogram
+        * `kWh`: kilowatt hour
+        * `litre`: Litre
+        * `m3`: cubic meter
+        * `usGallon`: US-Gallon (3.785411784 litres)
+      type: string
+      x-package: enums
+      enum:
+        - gasGallonEquivalent
+        - imperialGallon
+        - kg
+        - kWh
+        - litre
+        - m3
+        - usGallon
+
+    ElementDescriptorEnum:
+      title: ElementDescriptorEnum
+      description: |-
+        A list of the supported parking element descriptors (e.g. floor, row).
+        * `floorOrLevel`: Describes a place identified as a "floor", with typical use to describe a floor or level in a multi-level structure
+        * `row`: Describes a place identified as a "row", with typical use to describe a quasi-line parking or other feature of common characteristics
+        * `street`: Describes a place identified as a "street", with typical use to describe a part of a road sharing a common given name.
+      type: string
+      x-package: enums
+      enum:
+        - floorOrLevel
+        - row
+        - street
+
+    EmailTypeEnum:
+      title: EmailTypeEnum
+      description: |-
+        Defines the supported lists of different email contact types
+        * `customerService`: The email contact is for customer service.
+        * `general`: The email contact is general in nature.
+        * `helpdesk`: The email contact is a helpdesk.
+        * `individual`: The email contact is for a specified individual.
+      type: string
+      x-package: enums
+      enum:
+        - customerService
+        - general
+        - helpdesk
+        - individual
+
+    FuelTypeEnum:
+      title: FuelTypeEnum
+      description: |-
+        Type of fuel used by a vehicle : 
+        * `all`: All sort of fuel is accepted
+        * `battery`: Battery
+        * `biodiesel`: Biodiesel
+        * `diesel`: Fuel used for compression - ignition (CI) engines
+        * `dieselBatteryHybrid`: Diesel and battery hybrid
+        * `ethanol`: Ethanol\n* `hydrogen`: Hydrogen
+        * `liquidGas`: Liquid gas of any type including LPG
+        * `lpg`: Liquid petroleum gas\n* `methane`: Methane gas
+        * `other`: Other\n* `petrol`: Fuel used for positive-ignition (PI) engines
+        * `petrol95Octane`: Petrol with 95 octane\n* `petrol98Octane`: Petrol with 98 octane
+        * `petrolBatteryHybrid`: Petrol and battery hybrid
+        * `petrolLeaded`: Leaded petrol
+        * `petrolUnleaded`: Unleaded petrol
+        * `unknown`: The sort of fuel is not known"
+      type: string
+      x-package: enums
+      enum:
+        - all
+        - battery
+        - biodiesel
+        - diesel
+        - dieselBatteryHybrid
+        - ethanol
+        - hydrogen
+        - liquidGas
+        - lpg
+        - methane
+        - other
+        - petrol
+        - petrol95Octane
+        - petrol98Octane
+        - petrolBatteryHybrid
+        - petrolLeaded
+        - petrolUnleaded
+        - unknown
+
+    EquipmentTypeEnum:
+      title: EquipmentTypeEnum
+      description: |-
+        Types of equipment.
+        * `bikeParking`: Bike parking.
+        * `cashMachine`: Cash machine.
+        * `copyMachineOrService`: A possibility to create copies of documents.
+        * `defibrillator`: Medical equipment to provide first aid after heart attacks.
+        * `dsrcReceiver`: A system to manage digital short range communication (radio beacon transceivers), e.g. for tolling roadside equipment.
+        * `dumpingStation`: Possibility to get rid of sewerage (especially for motorhomes).
+        * `electricChargingStation`: For charging vehicles, motorhome supply etc. The 'numberOf...' attribute specifies the number of charging stations.
+        * `elevator`: Indication of the availability of elevators.
+        * `faxMachineOrService`: A possibility to send and/or receive faxes.
+        * `fireExtinguisher`: Fire extinguisher
+        * `fireHose`: A hose for water transport in case of fire.
+        * `fireHydrant`: Fire hydrant
+        * `firstAidEquipment`: Equipment to support first aid on injured people. Note that 'defibrillator' is a separate literal.
+        * `iceFreeScaffold`: A technical equipment to remove ice and snow from the roof of lorries.
+        * `informationPoint`: An information point with employees.
+        * `informationStele`: An unmanned information point.
+        * `internetTerminal`: Public internet terminal. Charges may be specified using the TariffsAndPayment section.
+        * `internetWireless`: Public wireless internet. Specifying an amount would be the number of hotspots/access points. Charges may be specified using the TariffsAndPayment section.
+        * `luggageLocker`: Possibility to deposit luggage in a safe way.
+        * `none`: None.
+        * `other`: Some other equipment. Use 'otherSupplementalFacility' to specify it.
+        * `paymentMachine`: A payment machine, for example a parking ticket machine.
+        * `picnicFacilities`: Indication of whether any picnicking facilities, such as tables, chairs and shaded areas, are available.
+        * `playground`: A playground for children.
+        * `publicCardPhone`: Indicates, whether there's a public telephone available that can be used with a card.
+        * `publicCoinPhone`: Indicates, whether there's a public telephone available that can be used with coins.
+        * `publicPhone`: Indicates, whether there's a public telephone available.
+        * `refuseBin`: Refuse bins for small amounts of garbage (see also 'wasteDisposal').
+        * `safeDeposit`: A possibility to store valuable possession in a safe way. 
+        * `shelter`: A shelter (against wind, sun, ....).
+        * `shower`: Indicates, whether there are shower facilities available.
+        * `snowAndIceRemovalEquipme`: Equipment to remove snow and ice.nt
+        * `toilet`: Indicates, whether there are toilets available.
+        * `tollTerminal`: A terminal, where toll charges can be paid manually (this does not mean a toll gate on the road)
+        * `tyreAirPressureEquipment`: Equipment to measure and refill tyre air pressure.
+        * `unknown`: Unknown.
+        * `vendingMachine`: A vending machine for snacks, coffee etc. (without manpower).
+        * `wasteDisposal`: Possibility to get rid of waste in a legal way (e.g. for truckers or motorhomes). Normal refuse bins are not intended here.
+        * `waterBasin`: A water basin to wash hands, clothes or dishes.
+        * `waterSupply`: Supply of fresh water, e.g. for motorhomes.
+        * `waterTap`: Fresh water out of a tap.
+      type: string
+      x-package: enums
+      enum:
+        - bikeParking
+        - cashMachine
+        - copyMachineOrService
+        - defibrillator
+        - dsrcReceiver
+        - dumpingStation
+        - electricChargingStation
+        - elevator
+        - faxMachineOrService
+        - fireExtinguisher
+        - fireHose
+        - fireHydrant
+        - firstAidEquipment
+        - iceFreeScaffold
+        - informationPoint
+        - informationStele
+        - internetTerminal
+        - internetWireless
+        - luggageLocker
+        - none
+        - other
+        - paymentMachine
+        - picnicFacilities
+        - playground
+        - publicCardPhone
+        - publicCoinPhone
+        - publicPhone
+        - refuseBin
+        - safeDeposit
+        - shelter
+        - shower
+        - snowAndIceRemovalEquipment
+        - toilet
+        - tollTerminal
+        - tyreAirPressureEquipment
+        - unknown
+        - vendingMachine
+        - wasteDisposal
+        - waterBasin
+        - waterSupply
+        - waterTap
+
+    FuzzyTimeTypeEnum:
+      title: FuzzyTimeTypeEnum
+      description: |-
+        Specifies the time period with non-precise characteristics
+        * `autumn`: Beginning of autumn/fall (Source: ISO 20524-1)
+        * `dawn`: Starts at dawn (Source: ISO 20524-1)
+        * `day`: Start of day (Source: ISO 20524-1)
+        * `drySeason`: Beginning of dry season (Source: ISO 20524-1)
+        * `dusk`: Starts at dusk (Source: ISO 20524-1)
+        * `external`: Starting period controlled by external device (Source: ISO 20524-1)
+        * `highTide`: Beginning of high tide (Source: ISO 20524-1)
+        * `highWater`: Beginning of high water (Source: ISO 20524-1)
+        * `holiday`: Starts at any holiday (Source: ISO 20524-1)
+        * `lowTide`: Beginning of low tide (Source: ISO 20524-1)
+        * `lowWater`: Beginning of low water (Source: ISO 20524-1)
+        * `night`: Start of night (Source: ISO 20524-1)
+        * `offpeakHours`: Start of off-peak hours (Source: ISO 20524-1)
+        * `peakHours`: Start of peak hours, peak hours include rush hour and activity/scheduled event based times. These would vary by location and by season (Source: ISO 20524-1)
+        * `school`: Starts at any school period (date and hour) (Source: ISO 20524-1)
+        * `spring`: Beginning of spring (Source: ISO 20524-1)
+        * `summer`: Beginning of summer (Source: ISO 20524-1)
+        * `wetSeason`: Beginning of wet season (Source: ISO 20524-1)
+        * `winter`: Beginning of winter (Source: ISO 20524-1)
+      type: string
+      x-package: enums
+      enum:
+        - autumn
+        - dawn
+        - day
+        - drySeason
+        - dusk
+        - external
+        - highTide
+        - highWater
+        - holiday
+        - lowTide
+        - lowWater
+        - night
+        - offpeakHours
+        - peakHours
+        - school
+        - spring
+        - summer
+        - wetSeason
+        - winter
+
+    HeightTypeEnum:
+      title: HeightTypeEnum
+      description: |-
+        List of coded values for height types, as defined in GML.
+        * `ellipsoidalHeight`: Value measured vertically above the reference ellipsoid
+        * `gravityRelatedHeight`: Height type corresponding a value measured along direction of gravity above the reference geoid i.e. equipotential surface of the Earth's gravity field which globally approximates mean sea level.
+        * `relativeHeight`: Height type corresponding to value measured vertically above the ground level at this point.
+      type: string
+      x-package: enums
+      enum:
+        - ellipsoidalHeight
+        - gravityRelatedHeight
+        - relativeHeight
+
+    HierarchyElementTypeEnum:
+      title: HierarchyElementTypeEnum
+      description: |-
+        Defines the supported lists of types of parking hierarchy elements permissible
+        * `campus`: a data structure holding information about a large, often ill-defined area, which may contain many parking structures.
+        * `identifiedArea`: a data structure holding information about a coherent feature, such as a set of parking spaces that all share the same characteristics
+        * `parkingPlace`: a data structure holding information about a single identifiable facility
+        * `space`: a data structure holding information about a single space for parking, usually designed for one vehicle, which may be denoted by painted or other road surface markers
+        * `subplaceElement`: a reusable data structure holding information about a collection of IdentifiableAreas
+      type: string
+      x-package: enums
+      enum:
+        - campus
+        - identifiedArea
+        - parkingPlace
+        - space
+        - subplaceElement
+
+    UnitOfMeasureAreaEnum:
+      title: UnitOfMeasureAreaEnum
+      description: 'Unit used for area/surface elements.'
+      type: string
+      x-package: enums
+      enum:
+        - squareFeet
+        - squareMetres
+        - squareYards
+
+    UnitOfMeasureDistanceEnum:
+      title: UnitOfMeasureDistanceEnum
+      description: 'Unit used for length/distance elements.'
+      type: string
+      x-package: enums
+      enum:
+        - foot
+        - metres
+
+    UnitOfMeasureWeightEnum:
+      title: UnitOfMeasureWeightEnum
+      description: 'Unit used for weight elements.'
+      type: string
+      x-package: enums
+      enum:
+        - poundsWeight
+        - tonnesMetric
+
+
