@@ -1,6 +1,6 @@
 package org.apds.model.place.contacts;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.springframework.test.util.AssertionErrors.assertNotNull;
 

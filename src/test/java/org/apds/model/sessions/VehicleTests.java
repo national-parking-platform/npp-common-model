@@ -1,8 +1,8 @@
 package org.apds.model.sessions;
 
 import org.apds.model.common.VehicleAncilliaryIdentification;
-import org.junit.Test;
 
+import org.junit.jupiter.api.Test;
 import java.util.UUID;
 
 import static org.springframework.test.util.AssertionErrors.assertEquals;

@@ -9,7 +9,7 @@ import org.apds.model.enums.IssueMethod;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-import javax.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotNull;
 import java.time.Instant;
 import java.util.List;
 
