@@ -25,6 +25,3 @@ replay_pid*
 
 # Build directory
 target
-
-# Mac Finder
-*.DS_Store
